@@ -1,52 +1,84 @@
 package com.wang.springbootdemo.rpc;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DefaultConsumer;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Envelope;
 
 import java.io.IOException;
+import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeoutException;
 
 public class RPCClient {
-    private final static String EXCHANGE_NAME = "topic_logs";
 
-    public static void main(String[] args) throws IOException, TimeoutException {
+    private Connection connection;
+    private Channel channel;
+    private String requestQueueName = "rpc_queue";
+    private String replyQueueName;
+
+    public RPCClient() throws IOException, TimeoutException {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("localhost");
-        Connection connection = factory.newConnection();
-        Channel channel = connection.createChannel();
 
-        String replyQueueName = channel.queueDeclare().getQueue();
-        //exchange:direct
-        channel.exchangeDeclare(EXCHANGE_NAME,"topic");
+        connection = factory.newConnection();
+        channel = connection.createChannel();
 
-        String routingKey = "lazy.l.rabbit";
-        String message = getMessage(args);
-        channel.basicPublish(EXCHANGE_NAME,routingKey,null,message.getBytes());
+        replyQueueName = channel.queueDeclare().getQueue();
+    }
 
-        System.out.println(" [x] Sent '" + message + ".");
-        channel.close();
+    public String call(String message) throws IOException, InterruptedException {
+        final String corrId = UUID.randomUUID().toString();
+
+        AMQP.BasicProperties props = new AMQP.BasicProperties
+                .Builder()
+                .correlationId(corrId)
+                .replyTo(replyQueueName)
+                .build();
+
+        channel.basicPublish("", requestQueueName, props, message.getBytes("UTF-8"));
+
+        final BlockingQueue<String> response = new ArrayBlockingQueue<String>(1);
+
+        channel.basicConsume(replyQueueName, true, new DefaultConsumer(channel) {
+            @Override
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                if (properties.getCorrelationId().equals(corrId)) {
+                    response.offer(new String(body, "UTF-8"));
+                }
+            }
+        });
+
+        return response.take();
+    }
+
+    public void close() throws IOException {
         connection.close();
     }
 
+    public static void main(String[] argv) {
+        RPCClient fibonacciRpc = null;
+        String response = null;
+        try {
+            fibonacciRpc = new RPCClient();
 
-
-    private static String getMessage(String[] strings) {
-        if(strings.length < 1) {
-            return "Hello World!";
+            System.out.println(" [x] Requesting fib(30)");
+            response = fibonacciRpc.call("30");
+            System.out.println(" [.] Got '" + response + "'");
         }
-        return joinStrings(strings, "");
-    }
-
-    private static String joinStrings(String[] strings, String delimiter) {
-        int length = strings.length;
-        if(length == 0) {
-            return "";
+        catch  (IOException | TimeoutException | InterruptedException e) {
+            e.printStackTrace();
         }
-        StringBuilder words = new StringBuilder(strings[0]);
-        for (int i = 1; i < length; i++) {
-            words.append(delimiter).append(strings[i]);
+        finally {
+            if (fibonacciRpc!= null) {
+                try {
+                    fibonacciRpc.close();
+                }
+                catch (IOException _ignore) {}
+            }
         }
-        return words.toString();
     }
 }
