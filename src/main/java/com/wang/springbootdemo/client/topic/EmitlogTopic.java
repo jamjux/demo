@@ -1,4 +1,4 @@
-package com.wang.springbootdemo.routing;
+package com.wang.springbootdemo.client.topic;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -7,8 +7,8 @@ import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
-public class EmitlogDirect {
-    private final static String EXCHANGE_NAME = "direct_logs";
+public class EmitlogTopic {
+    private final static String EXCHANGE_NAME = "topic_logs";
 
     public static void main(String[] args) throws IOException, TimeoutException {
         ConnectionFactory factory = new ConnectionFactory();
@@ -16,12 +16,11 @@ public class EmitlogDirect {
         Connection connection = factory.newConnection();
         Channel channel = connection.createChannel();
         //exchange:direct
-        channel.exchangeDeclare(EXCHANGE_NAME,"direct");
+        channel.exchangeDeclare(EXCHANGE_NAME,"topic");
 
-        String severity = "error";
+        String routingKey = "lazy.l.rabbit";
         String message = getMessage(args);
-        //routing key:severity
-        channel.basicPublish(EXCHANGE_NAME,severity,null,message.getBytes());
+        channel.basicPublish(EXCHANGE_NAME,routingKey,null,message.getBytes());
 
         System.out.println(" [x] Sent '" + message + ".");
         channel.close();

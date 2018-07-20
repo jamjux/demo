@@ -1,4 +1,4 @@
-package com.wang.springbootdemo.rpc;
+package com.wang.springbootdemo.client.rpc;
 
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Connection;

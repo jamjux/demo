@@ -1,23 +1,29 @@
-package com.wang.springbootdemo.workqueue;
+package com.wang.springbootdemo.client.topic;
 
 import com.rabbitmq.client.*;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
-public class Worker {
-    private static final String QUEUE_NAME = "task_queue";
+public class ReceiveLogsTopic {
+    private static final String EXCHANGE_NAME = "topic_logs";
 
     public static void main(String[] args) throws IOException, TimeoutException {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("localhost");
         Connection connection = factory.newConnection();
         Channel channel = connection.createChannel();
+        channel.exchangeDeclare(EXCHANGE_NAME, "topic");
 
-        channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+        //"*.orange.*", "*.*.rabbit", "lazy.#"
+        String queueName = channel.queueDeclare().getQueue();
+        String[] bindingKey = {"*.*.rabbit", "lazy.#"};
+        for (String key :
+                bindingKey) {
+            //binding key :
+            channel.queueBind(queueName, EXCHANGE_NAME, key);
+        }
 
-        //worker未处理完消息时不会再收到消息
-        channel.basicQos(1);
         System.out.println("[*] Waiting for messages. To exit press CTRL+C");
 
         final Consumer consumer = new DefaultConsumer(channel) {
@@ -27,7 +33,7 @@ public class Worker {
                                        byte[] body) throws IOException {
 
                 String message = new String(body, "UTF-8");
-                System.out.println(" [x] Received '" + message + "'");
+                System.out.println(" [x] Received '" + envelope.getRoutingKey() + "':'" + message + "'");
 
                 try {
                     doWork(message);
@@ -38,9 +44,8 @@ public class Worker {
                 }
             }
         };
-        //手动消息确认打开 false 关闭 true
-        boolean autoAck = false;
-        channel.basicConsume(QUEUE_NAME, autoAck, consumer);
+
+        channel.basicConsume(queueName, true, consumer);
 
     }
 

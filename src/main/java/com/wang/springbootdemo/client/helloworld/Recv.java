@@ -1,4 +1,4 @@
-package com.wang.springbootdemo.helloworld;
+package com.wang.springbootdemo.client.helloworld;
 
 import com.rabbitmq.client.*;
 

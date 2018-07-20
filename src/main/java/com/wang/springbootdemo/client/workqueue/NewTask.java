@@ -1,4 +1,4 @@
-package com.wang.springbootdemo.workqueue;
+package com.wang.springbootdemo.client.workqueue;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
